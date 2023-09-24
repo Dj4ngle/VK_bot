@@ -20,8 +20,8 @@ from kts_backend.store import Store, setup_store
 
 
 class Application(AiohttpApplication):
-    config: Sequence[Config] = None
-    store: Sequence[Store] = None
+    config: Config | None = None
+    store: Store | None = None
 
 app = Application()
 

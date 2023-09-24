@@ -19,3 +19,9 @@ class Message:
     user_id: int
     peer_id: int
     text: str
+
+@dataclass
+class User:
+    id: int
+    first_name: str | None
+    last_name: str | None

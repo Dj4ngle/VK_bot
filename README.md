@@ -4,3 +4,6 @@ daninza7@gmail.com
 Овчинников Данила Алексеевич
 # Мой telegram
 @danilaovchinnikov
+
+
+В корне проекта нужно создать директорию /local и перенести туда config.yml файл.
