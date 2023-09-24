@@ -5,7 +5,7 @@ from typing import Optional
 
 from aiohttp import TCPConnector
 from aiohttp.client import ClientSession
-from vk_api.keyboard import VkKeyboard
+from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 
 from kts_backend.base.base_accessor import BaseAccessor
 from kts_backend.store.vk_api.dataclasses import Message, Update, UpdateObject, User
@@ -105,7 +105,9 @@ class VkApiAccessor(BaseAccessor):
 
     async def send_message_start(self, message: Message) -> None:
 
-        json_button = '{"inline": true, "buttons": [[{"action": {"type": "text","label": "Начать"}},{"action": {"type": "text","label": "Таблица игроков"}}]]}'
+        keyboard = VkKeyboard(inline=True)
+        keyboard.add_button("Начать", VkKeyboardColor.POSITIVE)
+        keyboard.add_button("Таблица игроков", VkKeyboardColor.NEGATIVE)
 
         async with self.session.get(
             self._build_query(
@@ -117,7 +119,7 @@ class VkApiAccessor(BaseAccessor):
                     "peer_id": message.peer_id,
                     "message": message.text,
                     "access_token": self.app.config.bot.token,
-                    "keyboard": json_button
+                    "keyboard": keyboard.get_keyboard()
                 },
             )
         ) as resp:
@@ -131,7 +133,8 @@ class VkApiAccessor(BaseAccessor):
         self.capitan_id = random_user.id
         message_to_user = f"Капитан команды @id{random_user.id} ({random_user.first_name} {random_user.last_name}!)"
 
-        json_button = '{"inline": true, "buttons": [[{"action": {"type": "text","label": "Старт игры!!!"}}]]}'
+        keyboard = VkKeyboard(inline=True)
+        keyboard.add_button("Старт игры!!!", VkKeyboardColor.PRIMARY)
 
         async with self.session.get(
             self._build_query(
@@ -142,7 +145,7 @@ class VkApiAccessor(BaseAccessor):
                     "peer_id": message.peer_id,
                     "message": message_to_user,
                     "access_token": self.app.config.bot.token,
-                    "keyboard": json_button
+                    "keyboard": keyboard.get_keyboard()
                 },
             )
         ) as resp:
