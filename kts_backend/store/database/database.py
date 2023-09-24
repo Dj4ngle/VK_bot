@@ -15,7 +15,7 @@ class Database:
         self._db: declarative_base | None = None
         self.session: AsyncSession | None = None
 
-    async def connectconnect(self, *_: Any, **__: Any) -> None:
+    async def connect(self, *_: Any, **__: Any) -> None:
         self._db = db
         self._engine = create_async_engine()
         self.session = sessionmaker()

@@ -26,7 +26,7 @@ class BotManager:
                             text="Привет!",
                         )
                     )
-                if update.object.body["text"] == '[club222654957|@club222654957] Начать':
+                if update.object.body["text"] == f'[club{self.app.config.bot.group_id}|@club{self.app.config.bot.group_id}] Начать':
                     await self.app.store.vk_api.send_message_start_game(
                         Message(
                             user_id=update.object.user_id,
@@ -34,7 +34,7 @@ class BotManager:
                             text="Привет!",
                         )
                     )
-                if update.object.body["text"] == '[club222654957|@club222654957] Старт игры!!!' and update.object.user_id == self.app.store.vk_api.capitan_id:
+                if update.object.body["text"] == f'[club{self.app.config.bot.group_id}|@club{self.app.config.bot.group_id}] Старт игры!!!' and update.object.user_id == self.app.store.vk_api.capitan_id:
                     await self.app.store.vk_api.send_message_question(
                         Message(
                             user_id=update.object.user_id,
