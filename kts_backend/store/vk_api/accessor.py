@@ -1,4 +1,4 @@
-import random, typing
+import random, typing, asyncio
 
 from aiohttp import TCPConnector
 from aiohttp.client import ClientSession
@@ -6,6 +6,7 @@ from aiohttp.client import ClientSession
 from kts_backend.base.base_accessor import BaseAccessor
 from kts_backend.store.vk_api.dataclasses import Message, Update, UpdateObject, User
 from kts_backend.store.vk_api.poller import Poller
+from kts_backend.store.vk_api.worker import Worker
 
 if typing.TYPE_CHECKING:
     from kts_backend.web.app import Application
@@ -20,7 +21,9 @@ class VkApiAccessor(BaseAccessor):
         self.key: str | None = None
         self.server: str | None = None
         self.poller: Poller | None = None
+        self.worker: Worker | None = None
         self.ts: int | None = None
+        self.queue = asyncio.Queue()
 
     async def connect(self, app: "Application"):
         self.session = ClientSession(connector=TCPConnector(verify_ssl=False))
@@ -28,15 +31,20 @@ class VkApiAccessor(BaseAccessor):
             await self._get_long_poll_service()
         except Exception as e:
             self.logger.error("Exception", exc_info=e)
-        self.poller = Poller(app.store)
+        self.worker = Worker(app.store, self.queue, 5)
+        self.logger.info("start working")
+        self.poller = Poller(app.store, self.queue)
         self.logger.info("start polling")
+
         await self.poller.start()
+        await self.worker.start()
 
     async def disconnect(self, app: "Application"):
         if self.session:
             await self.session.close()
         if self.poller:
             await self.poller.stop()
+            await self.worker.stop()
 
     @staticmethod
     def _build_query(host: str, method: str, params: dict) -> str:
@@ -96,7 +104,7 @@ class VkApiAccessor(BaseAccessor):
                             ),
                         )
                     )
-            await self.app.store.bots_manager.handle_updates(updates)
+            return updates
 
     async def send_keyboard_message(self, message: Message, keyboard) -> None:
         async with self.session.get(
