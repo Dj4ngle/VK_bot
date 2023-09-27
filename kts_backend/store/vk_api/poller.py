@@ -3,7 +3,6 @@ from asyncio import Task
 
 from kts_backend.store import Store
 
-
 class Poller:
     def __init__(self, store: Store):
         self.store = store
@@ -17,6 +16,7 @@ class Poller:
     async def stop(self):
         self.is_running = False
         await self.poll_task
+        #self.poll_task.cancel()
 
     async def poll(self):
         while self.is_running:
