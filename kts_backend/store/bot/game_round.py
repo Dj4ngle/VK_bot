@@ -1,16 +1,18 @@
 import time
+
+from sqlalchemy import select
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
+
+from kts_backend.questions.models import TeamPlayerModel
 from kts_backend.store.vk_api.dataclasses import Message
 
 
 class GameManager:
     def __init__(self, app: "Application", *args, **kwargs):
         self.app = app
-        self.bot_points: int = 0
-        self.users_points: int = 0
-        self.current_question: int = 0
 
-    async def game_round(self, update, question):
+    async def game_round(self, update, question, session_id):
+
         await self.app.store.vk_api.send_message(
             Message(
                 peer_id=update.object.body["peer_id"],
@@ -36,9 +38,14 @@ class GameManager:
 
         time.sleep(1)
 
+        async with self.app.database.session() as session:
+            res = await session.execute(
+                select(TeamPlayerModel).where(TeamPlayerModel.session_id==session_id))
+            answerers = res.scalars().all()
+
         keyboard = VkKeyboard(inline=True)
-        for user in self.app.store.bots_manager.users_list:
-            keyboard.add_button(user.first_name + ' ' + user.last_name, VkKeyboardColor.PRIMARY)
+        for ans in answerers:
+            keyboard.add_button(ans.first_name + ' ' + ans.last_name, VkKeyboardColor.PRIMARY)
             keyboard.add_line()
         keyboard.lines.pop()
 
