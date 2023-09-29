@@ -27,7 +27,7 @@ class GameManager:
             ),
         )
 
-        time.sleep(5)
+        #time.sleep(5)
 
         await self.app.store.vk_api.send_message(
             Message(
@@ -36,7 +36,7 @@ class GameManager:
             ),
         )
 
-        time.sleep(1)
+        #time.sleep(1)
 
         async with self.app.database.session() as session:
             res = await session.execute(

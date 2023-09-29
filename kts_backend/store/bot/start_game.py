@@ -39,7 +39,7 @@ class StartGameManager:
 
         async with self.app.database.session() as session:
             res =await session.execute(
-                update(SessionsModel).where(SessionsModel.group_id == _update.object.peer_id).values(
+                update(SessionsModel).where(SessionsModel.group_id == _update.object.peer_id, SessionsModel.status != "Closed").values(
                     capitan_id=random_user.id).returning(SessionsModel.id))
             session_id = res.scalars().first()
 
