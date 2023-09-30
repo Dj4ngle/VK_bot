@@ -12,13 +12,11 @@ class Store:
 
         from kts_backend.store.bot.manager import BotManager
         from kts_backend.store.vk_api.accessor import VkApiAccessor
-        from kts_backend.store.bot.game_round import GameManager
-        from kts_backend.store.bot.start_game import StartGameManager
+        from kts_backend.store.bot.game_manager import GameManager
 
         self.vk_api = VkApiAccessor(app)
         self.bots_manager = BotManager(app)
-        self.game_round = GameManager(app)
-        self.start_game = StartGameManager(app)
+        self.game_manager = GameManager(app)
 
 def setup_store(app: "Application"):
     app.store = Store(app)

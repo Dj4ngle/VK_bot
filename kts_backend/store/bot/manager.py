@@ -1,7 +1,7 @@
 import typing, random, time
 from logging import getLogger
 
-from sqlalchemy import select, insert
+from sqlalchemy import select, insert, desc, func
 from sqlalchemy import update as update2
 
 from kts_backend.questions.models import QuestionModel, SessionsModel, GamesHistoryModel, Sessions, TeamPlayerModel, \
@@ -18,8 +18,7 @@ class BotManager:
         self.app = app
         self.bot = None
         self.logger = getLogger("handler")
-        self.questions: []
-        self.current_question = 0
+        self.question_limit = 6
 
     async def handle_updates(self, update):
 
@@ -30,7 +29,7 @@ class BotManager:
             if update.object.body["text"] == "/start":
 
                 #Выбор капитана команды
-                await self.app.store.start_game.choose_the_capitan(update)
+                await self.app.store.game_manager.choose_the_capitan(update)
 
             else:
 
@@ -39,12 +38,12 @@ class BotManager:
                         select(SessionsModel).where(SessionsModel.group_id == update.object.peer_id,
                                                     SessionsModel.status != "Closed"))
                     cur_session = res.scalars().first()
-                    if cur_session == []:
+                    if cur_session == None:
                         cur_session = Sessions(id=None, group_id=None, status=None, capitan_id=None)
 
-                    res = await session.execute(select(GamesHistoryModel).where(GamesHistoryModel.session_id==cur_session.id))
+                    res = await session.execute(select(GamesHistoryModel).where(GamesHistoryModel.session_id==cur_session.id).order_by(desc(GamesHistoryModel.id)))
                     cur_round_info = res.scalars().first()
-                    if cur_round_info == []:
+                    if cur_round_info == None:
                         cur_round_info = GamesHistory(id=None, session_id=None, guestion_id=None, player_id=None, is_answer_right=False)
 
                 # Проверка, что собщение является командой боту
@@ -57,23 +56,44 @@ class BotManager:
                         if command == 'Старт игры!!!':
 
                             async with self.app.database.session() as session:
-                                res = await session.execute(select(QuestionModel))
-                                self.questions = res.scalars().all()
+
+                                res = await session.execute(select(QuestionModel).order_by(func.random()))
+                                new_question = res.scalars().first()
+
+                                await session.execute(insert(GamesHistoryModel).values(
+                                    session_id=cur_session.id,
+                                    guestion_id=new_question.id,
+                                    is_answer_right=False
+                                ))
 
                                 await session.execute(
-                                    update2(SessionsModel).where(SessionsModel.group_id == update.object.peer_id).values(
-                                        status="Game started"))
+                                    update2(SessionsModel).where(
+                                        SessionsModel.group_id == update.object.peer_id,
+                                                    SessionsModel.status != "Closed"
+                                    ).values(
+                                        status="Game started"
+                                    ))
+
                                 await session.commit()
 
                             # Старт вопросов после решения капитана о начале игры
-                            await self.app.store.game_round.game_round(update, self.questions[self.current_question].title, cur_session.id)
+                            await self.app.store.game_manager.game_round(update, new_question.title, cur_session.id)
 
                         elif cur_session.status == "Game started":
                             # Информирование всех, кто выбран отвечающим для данного вопроса
                             async with self.app.database.session() as session:
-                                res = await session.execute(select(TeamPlayerModel).where(TeamPlayerModel.first_name==command.split(' ')[0], TeamPlayerModel.last_name==command.split(' ')[1]))
+                                res = await session.execute(select(TeamPlayerModel).where(
+                                    TeamPlayerModel.first_name==command.split(' ')[0],
+                                    TeamPlayerModel.last_name==command.split(' ')[1]
+                                ))
                                 answerer = res.scalars().first()
-                                await session.execute(insert(GamesHistoryModel).values(session_id=cur_session.id, guestion_id=self.questions[self.current_question].id, player_id=answerer.player_id, is_answer_right=False))
+
+                                await session.execute(update2(GamesHistoryModel).where(
+                                    GamesHistoryModel.session_id == cur_session.id
+                                ).values(
+                                    player_id=answerer.player_id
+                                ))
+
                                 await session.commit()
 
                             message_to_user = f"@id{answerer.player_id} ({command})  выбран отвечающим"
@@ -84,6 +104,7 @@ class BotManager:
                                     text=message_to_user,
                                 ),
                             )
+
 
                 elif cur_session.status == "Game started" and cur_round_info.player_id == update.object.user_id:
 
@@ -115,47 +136,80 @@ class BotManager:
                                 )
                             )
 
-                            #TODO ужно или уже учитывается?
-                            async with self.app.database.session() as session:
-                                await session.execute(update2(GamesHistoryModel).where(GamesHistoryModel.id == cur_round_info.id).values(is_answer_right=False))
-                                await session.commit()
+                        bot_points = 0
+                        users_points = 0
 
-                        if self.current_question > len(self.questions) - 1:
+                        async with self.app.database.session() as session:
+                            res = await session.execute(select(GamesHistoryModel).where(GamesHistoryModel.session_id == cur_session.id))
+                            all_rounds = res.scalars().all()
+
+                            all_questions_list=[]
+                            print("##############")
+                            print(all_questions_list)
+                        for round in all_rounds:
+                            if round.is_answer_right:
+                                users_points += 1
+                            else:
+                                bot_points += 1
+                            all_questions_list.append(round.guestion_id)
+                        print("@@@@@@@@@@@@@@@@@@@@")
+                        print(all_questions_list)
+
+
+                        await self.app.store.vk_api.send_message(
+                            Message(
+                                peer_id=update.object.peer_id,
+                                text=f"Текущий счёт: Бот: {bot_points} Игроки: {users_points}",
+                            )
+                        )
+
+                        if len(all_rounds) == self.question_limit:
+
                             await self.app.store.vk_api.send_message(
                                 Message(
                                     peer_id=update.object.peer_id,
                                     text=f"Игра окончена! "
-                                         f"Бот: {self.bot_points} "
-                                         f"Игроки: {self.users_points}",
+                                         f"Бот: {bot_points} "
+                                         f"Игроки: {users_points}",
                                 )
                             )
-                            self.bot_started = False
-                            self.game_started = False
-                            self.current_question = 0
-                            self.bot_points = 0
-                            self.users_points = 0
-                        else:
 
-                            bot_points = 0
-                            users_points = 0
+                            if users_points > bot_points:
+                                await self.app.store.vk_api.send_message(
+                                    Message(
+                                        peer_id=update.object.peer_id,
+                                        text="Победили игроки!!!!",
+                                    )
+                                )
+                            else:
+                                await self.app.store.vk_api.send_message(
+                                    Message(
+                                        peer_id=update.object.peer_id,
+                                        text="Победил бот!!!!",
+                                    )
+                                )
 
                             async with self.app.database.session() as session:
-                                res = await session.execute(select(GamesHistoryModel).where(GamesHistoryModel.session_id == cur_session.id))
-                                all_rounds = res.scalars().all()
+                                await session.execute(update2(SessionsModel).where(SessionsModel.id == cur_session.id).values(status="Closed"))
+                                await session.commit()
 
-                            for round in all_rounds:
-                                if round.is_answer_right:
-                                    users_points += 1
-                                else:
-                                    bot_points += 1
+                        else:
 
+                            async with self.app.database.session() as session:
+                                res = await session.execute(select(QuestionModel).order_by(func.random()))
+                                new_questions = res.scalars().all()
 
-                            await self.app.store.vk_api.send_message(
-                                Message(
-                                    peer_id=update.object.peer_id,
-                                    text=f"Текущий счёт: Бот: {bot_points} Игроки: {users_points}",
-                                )
-                            )
-                            self.current_question += 1
+                                for question in new_questions:
+                                    if question.id not in all_questions_list:
+                                        new_question = question
+                                        break
 
-                            await self.app.store.game_round.game_round(update, self.questions[self.current_question].title, cur_session.id)
+                                await session.execute(insert(GamesHistoryModel).values(
+                                    session_id=cur_session.id,
+                                    guestion_id=new_question.id,
+                                    is_answer_right=False
+                                ))
+
+                                await session.commit()
+
+                            await self.app.store.game_manager.game_round(update, new_question.title, cur_session.id)

@@ -3,17 +3,60 @@ import random
 from sqlalchemy import select, insert, update
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 
-from kts_backend.questions.models import SessionsModel, TeamPlayerModel, QuestionModel
+from kts_backend.questions.models import TeamPlayerModel, SessionsModel
 from kts_backend.store.vk_api.dataclasses import Message
 
 
-class StartGameManager:
+class GameManager:
     def __init__(self, app: "Application", *args, **kwargs):
         self.app = app
-        self.guestions = []
-        self.current_question: int = 0
 
+    async def game_round(self, _update, question, session_id):
 
+        await self.app.store.vk_api.send_message(
+            Message(
+                peer_id=_update.object.body["peer_id"],
+                text=question,
+            ),
+        )
+
+        await self.app.store.vk_api.send_message(
+            Message(
+                peer_id=_update.object.body["peer_id"],
+                text="На размышление одна минута",
+            ),
+        )
+
+        #time.sleep(5)
+
+        await self.app.store.vk_api.send_message(
+            Message(
+                peer_id=_update.object.body["peer_id"],
+                text="Осталось 10 секунд",
+            ),
+        )
+
+        #time.sleep(1)
+
+        async with self.app.database.session() as session:
+            res = await session.execute(
+                select(TeamPlayerModel).where(TeamPlayerModel.session_id==session_id))
+            answerers = res.scalars().all()
+
+        keyboard = VkKeyboard(inline=True)
+        for ans in answerers:
+            keyboard.add_button(ans.first_name + ' ' + ans.last_name, VkKeyboardColor.PRIMARY)
+            keyboard.add_line()
+        keyboard.lines.pop()
+
+        await self.app.store.vk_api.send_keyboard_message(
+            Message(
+                peer_id=_update.object.body["peer_id"],
+                text="Капитан, выберите кто отвечает",
+            ),
+            keyboard.get_keyboard(),
+        )
+    
     async def choose_the_capitan(self, _update):
 
         async with self.app.database.session() as session:
