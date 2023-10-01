@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from kts_backend.store.database.sqlalchemy_base import db
 from sqlalchemy import Column, BigInteger, String
 
+
 class Users:
     id: int
     vk_id: int
@@ -10,6 +11,7 @@ class Users:
     last_name: str
     right_answers: int
     answers: int
+
 
 class UsersModel(db):
     __tablename__ = "users"

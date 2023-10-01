@@ -5,6 +5,8 @@ from kts_backend.store.game_info.accessor import QuizAccessor
 
 if typing.TYPE_CHECKING:
     from kts_backend.web.app import Application
+
+
 class Store:
     def __init__(self, app: "Application", *args, **kwargs):
         from kts_backend.users.accessor import UserAccessor
@@ -21,6 +23,7 @@ class Store:
         self.game_manager = GameManager(app)
         self.admins = AdminAccessor(app)
         self.game_info = QuizAccessor(app)
+
 
 def setup_store(app: "Application"):
     app.store = Store(app)

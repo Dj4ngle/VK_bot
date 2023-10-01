@@ -26,4 +26,3 @@ class AdminModel(db):
     id = Column(BigInteger, primary_key=True)
     email = Column(String)
     password = Column(String)
-

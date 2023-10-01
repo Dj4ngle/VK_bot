@@ -4,14 +4,21 @@ from logging import getLogger
 from sqlalchemy import select, insert, desc, func
 from sqlalchemy import update as update2
 
-from kts_backend.game_info.models import QuestionModel, SessionsModel, GamesHistoryModel, Sessions, TeamPlayerModel, \
-    GamesHistory
+from kts_backend.game_info.models import (
+    QuestionModel,
+    SessionsModel,
+    GamesHistoryModel,
+    Sessions,
+    TeamPlayerModel,
+    GamesHistory,
+)
 from kts_backend.store.vk_api.dataclasses import Message, Update
 
 if typing.TYPE_CHECKING:
     from kts_backend.web.app import Application
 
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
+
 
 class BotManager:
     def __init__(self, app: "Application"):
@@ -28,23 +35,29 @@ class BotManager:
             # Команда для запуска бота
             if update.object.body["text"] == "/start":
 
-                #Выбор капитана команды
+                # Выбор капитана команды
                 await self.app.store.game_manager.choose_the_capitan(update)
 
             elif update.object.body["text"] == "/stop":
 
-                #Досрочное окончание игры
+                # Досрочное окончание игры
 
                 bot_points = 0
                 users_points = 0
 
                 async with self.app.database.session() as session:
                     res = await session.execute(
-                        select(SessionsModel).where(SessionsModel.group_id == update.object.peer_id,
-                                                    SessionsModel.status != "Closed"))
+                        select(SessionsModel).where(
+                            SessionsModel.group_id == update.object.peer_id,
+                            SessionsModel.status != "Closed",
+                        )
+                    )
                     cur_session = res.scalars().first()
                     res = await session.execute(
-                        select(GamesHistoryModel).where(GamesHistoryModel.session_id == cur_session.id))
+                        select(GamesHistoryModel).where(
+                            GamesHistoryModel.session_id == cur_session.id
+                        )
+                    )
                     all_rounds = res.scalars().all()
 
                 for round in all_rounds:
@@ -53,70 +66,106 @@ class BotManager:
                     else:
                         bot_points += 1
 
-                await self.app.store.game_manager.game_end(bot_points-1, users_points, update, cur_session.id)
+                await self.app.store.game_manager.game_end(
+                    bot_points - 1, users_points, update, cur_session.id
+                )
 
             else:
 
                 async with self.app.database.session() as session:
                     res = await session.execute(
-                        select(SessionsModel).where(SessionsModel.group_id == update.object.peer_id,
-                                                    SessionsModel.status != "Closed"))
+                        select(SessionsModel).where(
+                            SessionsModel.group_id == update.object.peer_id,
+                            SessionsModel.status != "Closed",
+                        )
+                    )
                     cur_session = res.scalars().first()
                     if cur_session == None:
-                        cur_session = Sessions(id=None, group_id=None, status=None, capitan_id=None)
+                        cur_session = Sessions(
+                            id=None, group_id=None, status=None, capitan_id=None
+                        )
 
-                    res = await session.execute(select(GamesHistoryModel).where(GamesHistoryModel.session_id==cur_session.id).order_by(desc(GamesHistoryModel.id)))
+                    res = await session.execute(
+                        select(GamesHistoryModel)
+                        .where(GamesHistoryModel.session_id == cur_session.id)
+                        .order_by(desc(GamesHistoryModel.id))
+                    )
                     cur_round_info = res.scalars().first()
                     if cur_round_info == None:
-                        cur_round_info = GamesHistory(id=None, session_id=None, guestion_id=None, player_id=None, is_answer_right=False)
+                        cur_round_info = GamesHistory(
+                            id=None,
+                            session_id=None,
+                            guestion_id=None,
+                            player_id=None,
+                            is_answer_right=False,
+                        )
 
                 # Проверка, что собщение является командой боту
-                if update.object.body["text"].startswith(f'[club{self.app.config.bot.group_id}|@'):
+                if update.object.body["text"].startswith(
+                    f"[club{self.app.config.bot.group_id}|@"
+                ):
 
                     index = update.object.body["text"].index(" ")
-                    command = update.object.body["text"][index + 1:]
+                    command = update.object.body["text"][index + 1 :]
 
                     if update.object.user_id == cur_session.capitan_id:
-                        if command == 'Старт игры!!!':
+                        if command == "Старт игры!!!":
 
                             async with self.app.database.session() as session:
 
-                                res = await session.execute(select(QuestionModel).order_by(func.random()))
+                                res = await session.execute(
+                                    select(QuestionModel).order_by(
+                                        func.random()
+                                    )
+                                )
                                 new_question = res.scalars().first()
 
-                                await session.execute(insert(GamesHistoryModel).values(
-                                    session_id=cur_session.id,
-                                    guestion_id=new_question.id,
-                                    is_answer_right=False
-                                ))
+                                await session.execute(
+                                    insert(GamesHistoryModel).values(
+                                        session_id=cur_session.id,
+                                        guestion_id=new_question.id,
+                                        is_answer_right=False,
+                                    )
+                                )
 
                                 await session.execute(
-                                    update2(SessionsModel).where(
-                                        SessionsModel.group_id == update.object.peer_id,
-                                                    SessionsModel.status != "Closed"
-                                    ).values(
-                                        status="Game started"
-                                    ))
+                                    update2(SessionsModel)
+                                    .where(
+                                        SessionsModel.group_id
+                                        == update.object.peer_id,
+                                        SessionsModel.status != "Closed",
+                                    )
+                                    .values(status="Game started")
+                                )
 
                                 await session.commit()
 
                             # Старт вопросов после решения капитана о начале игры
-                            await self.app.store.game_manager.game_round(update, new_question.title, cur_session.id)
+                            await self.app.store.game_manager.game_round(
+                                update, new_question.title, cur_session.id
+                            )
 
                         elif cur_session.status == "Game started":
                             # Информирование всех, кто выбран отвечающим для данного вопроса
                             async with self.app.database.session() as session:
-                                res = await session.execute(select(TeamPlayerModel).where(
-                                    TeamPlayerModel.first_name==command.split(' ')[0],
-                                    TeamPlayerModel.last_name==command.split(' ')[1]
-                                ))
+                                res = await session.execute(
+                                    select(TeamPlayerModel).where(
+                                        TeamPlayerModel.first_name
+                                        == command.split(" ")[0],
+                                        TeamPlayerModel.last_name
+                                        == command.split(" ")[1],
+                                    )
+                                )
                                 answerer = res.scalars().first()
 
-                                await session.execute(update2(GamesHistoryModel).where(
-                                    GamesHistoryModel.session_id == cur_session.id
-                                ).values(
-                                    player_id=answerer.player_id
-                                ))
+                                await session.execute(
+                                    update2(GamesHistoryModel)
+                                    .where(
+                                        GamesHistoryModel.session_id
+                                        == cur_session.id
+                                    )
+                                    .values(player_id=answerer.player_id)
+                                )
 
                                 await session.commit()
 
@@ -129,16 +178,24 @@ class BotManager:
                                 ),
                             )
 
-
-                elif cur_session.status == "Game started" and cur_round_info.player_id == update.object.user_id:
+                elif (
+                    cur_session.status == "Game started"
+                    and cur_round_info.player_id == update.object.user_id
+                ):
 
                     async with self.app.database.session() as session:
                         res = await session.execute(
-                            select(QuestionModel).where(QuestionModel.id == cur_round_info.guestion_id))
+                            select(QuestionModel).where(
+                                QuestionModel.id == cur_round_info.guestion_id
+                            )
+                        )
                         cur_question = res.scalars().first()
 
-                    # Проверка правильности ответа на вопрос
-                        if update.object.body["text"].lower() == cur_question.answer:
+                        # Проверка правильности ответа на вопрос
+                        if (
+                            update.object.body["text"].lower()
+                            == cur_question.answer
+                        ):
                             await self.app.store.vk_api.send_message(
                                 Message(
                                     peer_id=update.object.peer_id,
@@ -148,8 +205,13 @@ class BotManager:
 
                             async with self.app.database.session() as session:
                                 await session.execute(
-                                    update2(GamesHistoryModel).where(GamesHistoryModel.id == cur_round_info.id).values(
-                                        is_answer_right=True))
+                                    update2(GamesHistoryModel)
+                                    .where(
+                                        GamesHistoryModel.id
+                                        == cur_round_info.id
+                                    )
+                                    .values(is_answer_right=True)
+                                )
                                 await session.commit()
 
                         else:
@@ -164,17 +226,21 @@ class BotManager:
                         users_points = 0
 
                         async with self.app.database.session() as session:
-                            res = await session.execute(select(GamesHistoryModel).where(GamesHistoryModel.session_id == cur_session.id))
+                            res = await session.execute(
+                                select(GamesHistoryModel).where(
+                                    GamesHistoryModel.session_id
+                                    == cur_session.id
+                                )
+                            )
                             all_rounds = res.scalars().all()
 
-                            all_questions_list=[]
+                            all_questions_list = []
                         for round in all_rounds:
                             if round.is_answer_right:
                                 users_points += 1
                             else:
                                 bot_points += 1
                             all_questions_list.append(round.guestion_id)
-
 
                         await self.app.store.vk_api.send_message(
                             Message(
@@ -184,13 +250,19 @@ class BotManager:
                         )
 
                         if len(all_rounds) == self.question_limit:
-                            #Конец игры
-                            await self.app.store.game_manager.game_end(bot_points, users_points, update, cur_session.id)
+                            # Конец игры
+                            await self.app.store.game_manager.game_end(
+                                bot_points, users_points, update, cur_session.id
+                            )
 
                         else:
 
                             async with self.app.database.session() as session:
-                                res = await session.execute(select(QuestionModel).order_by(func.random()))
+                                res = await session.execute(
+                                    select(QuestionModel).order_by(
+                                        func.random()
+                                    )
+                                )
                                 new_questions = res.scalars().all()
 
                                 for question in new_questions:
@@ -198,12 +270,16 @@ class BotManager:
                                         new_question = question
                                         break
 
-                                await session.execute(insert(GamesHistoryModel).values(
-                                    session_id=cur_session.id,
-                                    guestion_id=new_question.id,
-                                    is_answer_right=False
-                                ))
+                                await session.execute(
+                                    insert(GamesHistoryModel).values(
+                                        session_id=cur_session.id,
+                                        guestion_id=new_question.id,
+                                        is_answer_right=False,
+                                    )
+                                )
 
                                 await session.commit()
 
-                            await self.app.store.game_manager.game_round(update, new_question.title, cur_session.id)
+                            await self.app.store.game_manager.game_round(
+                                update, new_question.title, cur_session.id
+                            )

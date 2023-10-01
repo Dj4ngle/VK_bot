@@ -2,7 +2,9 @@ import typing
 
 from kts_backend.game_info.views import (
     QuestionAddView,
-    QuestionListView, QuestionEditeView, SessionsView,
+    QuestionListView,
+    QuestionEditeView,
+    SessionsView,
 )
 
 if typing.TYPE_CHECKING:

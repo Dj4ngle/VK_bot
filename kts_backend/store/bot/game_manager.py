@@ -41,12 +41,17 @@ class GameManager:
 
         async with self.app.database.session() as session:
             res = await session.execute(
-                select(TeamPlayerModel).where(TeamPlayerModel.session_id==session_id))
+                select(TeamPlayerModel).where(
+                    TeamPlayerModel.session_id == session_id
+                )
+            )
             answerers = res.scalars().all()
 
         keyboard = VkKeyboard(inline=True)
         for ans in answerers:
-            keyboard.add_button(ans.first_name + ' ' + ans.last_name, VkKeyboardColor.PRIMARY)
+            keyboard.add_button(
+                ans.first_name + " " + ans.last_name, VkKeyboardColor.PRIMARY
+            )
             keyboard.add_line()
         keyboard.lines.pop()
 
@@ -57,42 +62,68 @@ class GameManager:
             ),
             keyboard.get_keyboard(),
         )
-    
+
     async def choose_the_capitan(self, _update):
 
         async with self.app.database.session() as session:
             res = await session.execute(
-                select(SessionsModel).where(SessionsModel.group_id == _update.object.peer_id))
+                select(SessionsModel).where(
+                    SessionsModel.group_id == _update.object.peer_id
+                )
+            )
             is_session_opened = res.scalars().all()
 
             if is_session_opened == []:
                 await session.execute(
-                    insert(SessionsModel).values(group_id=_update.object.peer_id, status="Started",
-                                                 capitan_id=None))
+                    insert(SessionsModel).values(
+                        group_id=_update.object.peer_id,
+                        status="Started",
+                        capitan_id=None,
+                    )
+                )
                 await session.commit()
             else:
                 await session.execute(
-                    update(SessionsModel).where(SessionsModel.group_id == _update.object.peer_id).values(
-                        status="Closed"))
-                await session.execute(insert(SessionsModel).values(group_id=_update.object.peer_id, status="Started",
-                                                   capitan_id=None))
+                    update(SessionsModel)
+                    .where(SessionsModel.group_id == _update.object.peer_id)
+                    .values(status="Closed")
+                )
+                await session.execute(
+                    insert(SessionsModel).values(
+                        group_id=_update.object.peer_id,
+                        status="Started",
+                        capitan_id=None,
+                    )
+                )
                 await session.commit()
 
-        users_list = await self.app.store.vk_api.get_all_users_from_chat(_update.object.body["peer_id"])
+        users_list = await self.app.store.vk_api.get_all_users_from_chat(
+            _update.object.body["peer_id"]
+        )
         random_user = random.choice(users_list)
 
         async with self.app.database.session() as session:
-            res =await session.execute(
-                update(SessionsModel).where(SessionsModel.group_id == _update.object.peer_id, SessionsModel.status != "Closed").values(
-                    capitan_id=random_user.id).returning(SessionsModel.id))
+            res = await session.execute(
+                update(SessionsModel)
+                .where(
+                    SessionsModel.group_id == _update.object.peer_id,
+                    SessionsModel.status != "Closed",
+                )
+                .values(capitan_id=random_user.id)
+                .returning(SessionsModel.id)
+            )
             session_id = res.scalars().first()
 
             for user in users_list:
                 await session.execute(
-                    insert(TeamPlayerModel).values(session_id=session_id, player_id=user.id,
-                                                 first_name=user.first_name, last_name=user.last_name))
+                    insert(TeamPlayerModel).values(
+                        session_id=session_id,
+                        player_id=user.id,
+                        first_name=user.first_name,
+                        last_name=user.last_name,
+                    )
+                )
             await session.commit()
-
 
         message_to_user = f"Капитан команды @id{random_user.id} ({random_user.first_name} {random_user.last_name}!)"
 
@@ -112,8 +143,8 @@ class GameManager:
             Message(
                 peer_id=_update.object.peer_id,
                 text=f"Игра окончена! "
-                     f"Бот: {bot_points} "
-                     f"Игроки: {users_points}",
+                f"Бот: {bot_points} "
+                f"Игроки: {users_points}",
             )
         )
 
@@ -134,5 +165,8 @@ class GameManager:
 
         async with self.app.database.session() as session:
             await session.execute(
-                update(SessionsModel).where(SessionsModel.id == session_id).values(status="Closed"))
+                update(SessionsModel)
+                .where(SessionsModel.id == session_id)
+                .values(status="Closed")
+            )
             await session.commit()

@@ -14,14 +14,14 @@ from aiohttp_session import setup as session_setup
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
 
 
-#from kts_backend import __appname__, __version__
+# from kts_backend import __appname__, __version__
 from kts_backend.web.config import Config, setup_config
 from kts_backend.web.logger import setup_logging
 from .middlewares import setup_middlewares
 from .urls import register_urls
 
 
-#__all__ = ("ApiApplication",)
+# __all__ = ("ApiApplication",)
 
 from kts_backend.store import Store, setup_store, Database
 from kts_backend.web.urls import register_urls
@@ -32,6 +32,7 @@ class Application(AiohttpApplication):
     config: Config | None = None
     store: Store | None = None
     database: Database | None = None
+
 
 class Request(AiohttpRequest):
     admin: Admin | None = None
@@ -58,7 +59,9 @@ class View(AiohttpView):
     def data(self) -> dict:
         return self.request.get("data", {})
 
+
 app = Application()
+
 
 def setup_app(config_path: str) -> Application:
     setup_logging(app)
