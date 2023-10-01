@@ -46,7 +46,7 @@ class GamesHistoryModel(db):
     __tablename__ = "gameshistory"
     id = Column(BigInteger, primary_key=True)
     session_id = Column(BigInteger, ForeignKey('sessions.id'))
-    guestion_id = Column(BigInteger, ForeignKey('questions.id'))
+    guestion_id = Column(BigInteger, ForeignKey('game_info.id'))
     player_id = Column(BigInteger)
     is_answer_right = Column(Boolean)
 

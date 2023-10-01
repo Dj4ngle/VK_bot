@@ -1,9 +1,10 @@
+import asyncio
 import random
 
 from sqlalchemy import select, insert, update
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 
-from kts_backend.questions.models import TeamPlayerModel, SessionsModel
+from kts_backend.game_info.models import TeamPlayerModel, SessionsModel
 from kts_backend.store.vk_api.dataclasses import Message
 
 
@@ -20,23 +21,23 @@ class GameManager:
             ),
         )
 
-        await self.app.store.vk_api.send_message(
-            Message(
-                peer_id=_update.object.body["peer_id"],
-                text="На размышление одна минута",
-            ),
-        )
-
-        #time.sleep(5)
-
-        await self.app.store.vk_api.send_message(
-            Message(
-                peer_id=_update.object.body["peer_id"],
-                text="Осталось 10 секунд",
-            ),
-        )
-
-        #time.sleep(1)
+        # await self.app.store.vk_api.send_message(
+        #     Message(
+        #         peer_id=_update.object.body["peer_id"],
+        #         text="На размышление одна минута",
+        #     ),
+        # )
+        #
+        # await asyncio.sleep(50)
+        #
+        # await self.app.store.vk_api.send_message(
+        #     Message(
+        #         peer_id=_update.object.body["peer_id"],
+        #         text="Осталось 10 секунд",
+        #     ),
+        # )
+        #
+        # await asyncio.sleep(10)
 
         async with self.app.database.session() as session:
             res = await session.execute(
@@ -105,3 +106,33 @@ class GameManager:
             ),
             keyboard.get_keyboard(),
         )
+
+    async def game_end(self, bot_points, users_points, _update, session_id):
+        await self.app.store.vk_api.send_message(
+            Message(
+                peer_id=_update.object.peer_id,
+                text=f"Игра окончена! "
+                     f"Бот: {bot_points} "
+                     f"Игроки: {users_points}",
+            )
+        )
+
+        if users_points > bot_points:
+            await self.app.store.vk_api.send_message(
+                Message(
+                    peer_id=_update.object.peer_id,
+                    text="Победили игроки!!!!",
+                )
+            )
+        else:
+            await self.app.store.vk_api.send_message(
+                Message(
+                    peer_id=_update.object.peer_id,
+                    text="Победил бот!!!!",
+                )
+            )
+
+        async with self.app.database.session() as session:
+            await session.execute(
+                update(SessionsModel).where(SessionsModel.id == session_id).values(status="Closed"))
+            await session.commit()

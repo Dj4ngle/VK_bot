@@ -4,7 +4,7 @@ from logging import getLogger
 from sqlalchemy import select, insert, desc, func
 from sqlalchemy import update as update2
 
-from kts_backend.questions.models import QuestionModel, SessionsModel, GamesHistoryModel, Sessions, TeamPlayerModel, \
+from kts_backend.game_info.models import QuestionModel, SessionsModel, GamesHistoryModel, Sessions, TeamPlayerModel, \
     GamesHistory
 from kts_backend.store.vk_api.dataclasses import Message, Update
 
@@ -30,6 +30,30 @@ class BotManager:
 
                 #Выбор капитана команды
                 await self.app.store.game_manager.choose_the_capitan(update)
+
+            elif update.object.body["text"] == "/stop":
+
+                #Досрочное окончание игры
+
+                bot_points = 0
+                users_points = 0
+
+                async with self.app.database.session() as session:
+                    res = await session.execute(
+                        select(SessionsModel).where(SessionsModel.group_id == update.object.peer_id,
+                                                    SessionsModel.status != "Closed"))
+                    cur_session = res.scalars().first()
+                    res = await session.execute(
+                        select(GamesHistoryModel).where(GamesHistoryModel.session_id == cur_session.id))
+                    all_rounds = res.scalars().all()
+
+                for round in all_rounds:
+                    if round.is_answer_right:
+                        users_points += 1
+                    else:
+                        bot_points += 1
+
+                await self.app.store.game_manager.game_end(bot_points-1, users_points, update, cur_session.id)
 
             else:
 
@@ -144,16 +168,12 @@ class BotManager:
                             all_rounds = res.scalars().all()
 
                             all_questions_list=[]
-                            print("##############")
-                            print(all_questions_list)
                         for round in all_rounds:
                             if round.is_answer_right:
                                 users_points += 1
                             else:
                                 bot_points += 1
                             all_questions_list.append(round.guestion_id)
-                        print("@@@@@@@@@@@@@@@@@@@@")
-                        print(all_questions_list)
 
 
                         await self.app.store.vk_api.send_message(
@@ -164,34 +184,8 @@ class BotManager:
                         )
 
                         if len(all_rounds) == self.question_limit:
-
-                            await self.app.store.vk_api.send_message(
-                                Message(
-                                    peer_id=update.object.peer_id,
-                                    text=f"Игра окончена! "
-                                         f"Бот: {bot_points} "
-                                         f"Игроки: {users_points}",
-                                )
-                            )
-
-                            if users_points > bot_points:
-                                await self.app.store.vk_api.send_message(
-                                    Message(
-                                        peer_id=update.object.peer_id,
-                                        text="Победили игроки!!!!",
-                                    )
-                                )
-                            else:
-                                await self.app.store.vk_api.send_message(
-                                    Message(
-                                        peer_id=update.object.peer_id,
-                                        text="Победил бот!!!!",
-                                    )
-                                )
-
-                            async with self.app.database.session() as session:
-                                await session.execute(update2(SessionsModel).where(SessionsModel.id == cur_session.id).values(status="Closed"))
-                                await session.commit()
+                            #Конец игры
+                            await self.app.store.game_manager.game_end(bot_points, users_points, update, cur_session.id)
 
                         else:
 
