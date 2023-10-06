@@ -36,7 +36,7 @@ class VkApiAccessor(BaseAccessor):
             await self._get_long_poll_service()
         except Exception as e:
             self.logger.error("Exception", exc_info=e)
-        self.worker = Worker(app.store, self.queue, 1)
+        self.worker = Worker(app.store, self.queue)
         self.logger.info("start working")
         self.poller = Poller(app.store, self.queue)
         self.logger.info("start polling")

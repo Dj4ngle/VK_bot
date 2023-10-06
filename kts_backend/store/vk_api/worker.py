@@ -1,34 +1,29 @@
 import asyncio, typing
+from asyncio import Task
 
 from kts_backend.store import Store
 from kts_backend.store.vk_api.dataclasses import UpdateObject
 
 
 class Worker:
-    def __init__(self, store: Store, queue: asyncio.Queue, n: int):
+    def __init__(self, store: Store, queue: asyncio.Queue):
         self.store = store
         self.queue = queue
         self.is_running = False
-        self.n = n
-        self._tasks: typing.List[asyncio.Task] = []
+        self._task: Task | None = None
 
-    async def worker(self, worker_id):
+    async def worker(self):
         while self.is_running:
             u: UpdateObject = await self.queue.get()
-            print(f"Worker {worker_id} is processing update: {u}")
             await self.store.bots_manager.handle_updates(u)
             self.queue.task_done()
 
     async def start(self):
         print("worker started")
         self.is_running = True
-        for i in range(self.n):
-            task = asyncio.create_task((self.worker(i)))
-            self._tasks.append(task)
+        self._task = asyncio.create_task((self.worker()))
 
     async def stop(self):
         print("worker stoped")
         self.is_running = False
-        await self.queue.join()
-        for t in self._tasks:
-            t.cancel()
+        self._task.cancel()

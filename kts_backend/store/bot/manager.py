@@ -2,7 +2,7 @@ import typing, random, time
 from logging import getLogger
 
 from sqlalchemy import select, insert, desc, func
-from sqlalchemy import update as update2
+from sqlalchemy import update as alchemy_update
 
 from kts_backend.game_info.models import (
     QuestionModel,
@@ -25,7 +25,9 @@ class BotManager:
         self.app = app
         self.bot = None
         self.logger = getLogger("handler")
-        self.question_limit = 6
+        self.question_limit = 13
+        self.start_option = "/start"
+        self.stop_option = "/stop"
 
     async def handle_updates(self, update):
 
@@ -33,14 +35,13 @@ class BotManager:
             return
         else:
             # Команда для запуска бота
-            if update.object.body["text"] == "/start":
+            if update.object.body["text"] == self.start_option:
 
                 # Выбор капитана команды
                 await self.app.store.game_manager.choose_the_capitan(update)
 
-            elif update.object.body["text"] == "/stop":
-
-                # Досрочное окончание игры
+            # Досрочное окончание игры
+            elif update.object.body["text"] == self.stop_option:
 
                 bot_points = 0
                 users_points = 0
@@ -53,22 +54,28 @@ class BotManager:
                         )
                     )
                     cur_session = res.scalars().first()
-                    res = await session.execute(
-                        select(GamesHistoryModel).where(
-                            GamesHistoryModel.session_id == cur_session.id
-                        )
-                    )
-                    all_rounds = res.scalars().all()
-
-                for round in all_rounds:
-                    if round.is_answer_right:
-                        users_points += 1
+                    if not cur_session:
+                        pass
                     else:
-                        bot_points += 1
+                        res = await session.execute(
+                            select(GamesHistoryModel).where(
+                                GamesHistoryModel.session_id == cur_session.id
+                            )
+                        )
+                        all_rounds = res.scalars().all()
 
-                await self.app.store.game_manager.game_end(
-                    bot_points - 1, users_points, update, cur_session.id
-                )
+                        for round in all_rounds:
+                            if round.is_answer_right:
+                                users_points += 1
+                            else:
+                                bot_points += 1
+
+                        if bot_points == 0:
+                            bot_points += 1
+
+                        await self.app.store.game_manager.game_end(
+                            bot_points - 1, users_points, update, cur_session.id
+                        )
 
             else:
 
@@ -129,7 +136,7 @@ class BotManager:
                                 )
 
                                 await session.execute(
-                                    update2(SessionsModel)
+                                    alchemy_update(SessionsModel)
                                     .where(
                                         SessionsModel.group_id
                                         == update.object.peer_id,
@@ -159,7 +166,7 @@ class BotManager:
                                 answerer = res.scalars().first()
 
                                 await session.execute(
-                                    update2(GamesHistoryModel)
+                                    alchemy_update(GamesHistoryModel)
                                     .where(
                                         GamesHistoryModel.session_id
                                         == cur_session.id
@@ -205,7 +212,7 @@ class BotManager:
 
                             async with self.app.database.session() as session:
                                 await session.execute(
-                                    update2(GamesHistoryModel)
+                                    alchemy_update(GamesHistoryModel)
                                     .where(
                                         GamesHistoryModel.id
                                         == cur_round_info.id

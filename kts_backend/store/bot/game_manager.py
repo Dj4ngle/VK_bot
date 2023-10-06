@@ -48,20 +48,62 @@ class GameManager:
             answerers = res.scalars().all()
 
         keyboard = VkKeyboard(inline=True)
-        for ans in answerers:
-            keyboard.add_button(
-                ans.first_name + " " + ans.last_name, VkKeyboardColor.PRIMARY
-            )
-            keyboard.add_line()
-        keyboard.lines.pop()
 
-        await self.app.store.vk_api.send_keyboard_message(
-            Message(
-                peer_id=_update.object.body["peer_id"],
-                text="Капитан, выберите кто отвечает",
-            ),
-            keyboard.get_keyboard(),
-        )
+        if len(answerers)>6:
+
+            # Игроков больше 6
+            await self.app.store.vk_api.send_message(
+                Message(
+                    peer_id=_update.object.body["peer_id"],
+                    text="Капитан, выберите кто отвечает",
+                ),
+            )
+            i=0
+            for ans in answerers:
+                keyboard.add_button(
+                    ans.first_name + " " + ans.last_name, VkKeyboardColor.PRIMARY
+                )
+                keyboard.add_line()
+                i+=1
+                if i >= 5:
+                    keyboard.lines.pop()
+                    i=0
+                    await self.app.store.vk_api.send_keyboard_message(
+                        Message(
+                            peer_id=_update.object.body["peer_id"],
+                            text="_",
+                        ),
+                        keyboard.get_keyboard(),
+                    )
+                    keyboard.lines.clear()
+                    keyboard = VkKeyboard(inline=True)
+            keyboard.lines.pop()
+
+            await self.app.store.vk_api.send_keyboard_message(
+                Message(
+                    peer_id=_update.object.body["peer_id"],
+                    text="_",
+                ),
+                keyboard.get_keyboard(),
+            )
+
+        else:
+
+            #Игроков меньше 6
+            for ans in answerers:
+                keyboard.add_button(
+                    ans.first_name + " " + ans.last_name, VkKeyboardColor.PRIMARY
+                )
+                keyboard.add_line()
+            keyboard.lines.pop()
+
+            await self.app.store.vk_api.send_keyboard_message(
+                Message(
+                    peer_id=_update.object.body["peer_id"],
+                    text="Капитан, выберите кто отвечает",
+                ),
+                keyboard.get_keyboard(),
+            )
 
     async def choose_the_capitan(self, _update):
 
