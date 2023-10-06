@@ -20,6 +20,7 @@ class Message:
     peer_id: int
     text: str
 
+
 @dataclass
 class User:
     id: int

@@ -4,7 +4,12 @@ from aiohttp import TCPConnector
 from aiohttp.client import ClientSession
 
 from kts_backend.base.base_accessor import BaseAccessor
-from kts_backend.store.vk_api.dataclasses import Message, Update, UpdateObject, User
+from kts_backend.store.vk_api.dataclasses import (
+    Message,
+    Update,
+    UpdateObject,
+    User,
+)
 from kts_backend.store.vk_api.poller import Poller
 from kts_backend.store.vk_api.worker import Worker
 
@@ -31,7 +36,7 @@ class VkApiAccessor(BaseAccessor):
             await self._get_long_poll_service()
         except Exception as e:
             self.logger.error("Exception", exc_info=e)
-        self.worker = Worker(app.store, self.queue, 1)
+        self.worker = Worker(app.store, self.queue)
         self.logger.info("start working")
         self.poller = Poller(app.store, self.queue)
         self.logger.info("start polling")
@@ -82,7 +87,7 @@ class VkApiAccessor(BaseAccessor):
                     "key": self.key,
                     "wait": 10,
                     "mode": 2,
-                    "ts": self.ts
+                    "ts": self.ts,
                 },
             )
         ) as resp:
@@ -116,7 +121,7 @@ class VkApiAccessor(BaseAccessor):
                     "peer_id": message.peer_id,
                     "message": message.text,
                     "access_token": self.app.config.bot.token,
-                    "keyboard": keyboard
+                    "keyboard": keyboard,
                 },
             )
         ) as resp:
@@ -141,25 +146,27 @@ class VkApiAccessor(BaseAccessor):
 
     async def get_all_users_from_chat(self, peer_id) -> None:
 
-            async with self.session.get(
-                self._build_query(
-                    API_PATH,
-                    "messages.getConversationMembers",
-                    params={
-                        "peer_id": peer_id,
-                        "access_token": self.app.config.bot.token,
-                        "fields": "first_name",
-                    },
-                )
-            ) as resp:
-                users = await resp.json()
-            self.logger.info(users)
-            list_users = []
-            for user in users["response"]["profiles"]:
+        async with self.session.get(
+            self._build_query(
+                API_PATH,
+                "messages.getConversationMembers",
+                params={
+                    "peer_id": peer_id,
+                    "access_token": self.app.config.bot.token,
+                    "fields": "first_name",
+                },
+            )
+        ) as resp:
+            users = await resp.json()
+        self.logger.info(users)
+        list_users = []
+        for user in users["response"]["profiles"]:
 
-                list_users.append(User(
-                    id=user['id'],
-                    first_name=user['first_name'],
-                    last_name=user['last_name'],
-                ))
-            return list_users
+            list_users.append(
+                User(
+                    id=user["id"],
+                    first_name=user["first_name"],
+                    last_name=user["last_name"],
+                )
+            )
+        return list_users

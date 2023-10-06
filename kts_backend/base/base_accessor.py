@@ -17,13 +17,15 @@ class BaseAccessor:
         self.session: typing.Optional[AsyncSession] = None
 
     async def connect(self, app: "Application"):
-        db_url = (f"postgresql+asyncpg://{self.app.config.database.user}:"
-                  f"{self.app.config.database.password}@{self.app.config.database.host}/"
-                  f"{self.app.config.database.database}")
+        db_url = (
+            f"postgresql+asyncpg://{self.app.config.database.user}:"
+            f"{self.app.config.database.password}@{self.app.config.database.host}/"
+            f"{self.app.config.database.database}"
+        )
         self.session = sessionmaker(
             create_async_engine(db_url, echo=True),
             expire_on_commit=False,
-            class_=AsyncSession
+            class_=AsyncSession,
         )
         return self.session
 
